@@ -33,46 +33,58 @@ struct ContentView: View {
     @State private var midDayForecastWeatherList = [StaticWeather]()
     @State private var eveningForecastWeatherList = [StaticWeather]()
     @State private var isNight = false
+    @State private var isLoading = true
+    @State private var showAlert = false
     
     var body: some View {
         ZStack {
             BackgroundView(isNight: $isNight)
-            VStack {
-                CityTextView(cityName: "\(city), ZH")
-                
-                MainWeatherStatusView(imageName: isNight ? currentEveningWeather.imageName : currentMidDayWeather.imageName,
-                                      temperatur: isNight ? currentEveningWeather.temperature : currentMidDayWeather.temperature)
-                
-                HStack(spacing: 20) {
-                    if isNight {
-                        ForEach(eveningForecastWeatherList, id: \.id) { weather in
-                            WeatherDayView(dayOfWeek: weather.dayOfWeek,
-                                           imageName: weather.imageName,
-                                           temperature: weather.temperature)
+            if isLoading {
+                LoadingView(isLoading: $isLoading)
+            } else {
+                if showAlert {
+                    Text("Oops something went wrong!\nPlease restart the application :D")
+                } else {
+                    VStack {
+                        CityTextView(cityName: "\(city), ZH")
+
+                        MainWeatherStatusView(imageName: isNight ? currentEveningWeather.imageName : currentMidDayWeather.imageName,
+                                              temperatur: isNight ? currentEveningWeather.temperature : currentMidDayWeather.temperature)
+
+                        HStack(spacing: 20) {
+                            if isNight {
+                                ForEach(eveningForecastWeatherList, id: \.id) { weather in
+                                    WeatherDayView(dayOfWeek: weather.dayOfWeek,
+                                                   imageName: weather.imageName,
+                                                   temperature: weather.temperature)
+                                }
+                            } else {
+                                ForEach(midDayForecastWeatherList, id: \.id) { weather in
+                                    WeatherDayView(dayOfWeek: weather.dayOfWeek,
+                                                   imageName: weather.imageName,
+                                                   temperature: weather.temperature)
+                                }
+                            }
                         }
-                    } else {
-                        ForEach(midDayForecastWeatherList, id: \.id) { weather in
-                            WeatherDayView(dayOfWeek: weather.dayOfWeek,
-                                           imageName: weather.imageName,
-                                           temperature: weather.temperature)
+                        Spacer()
+                        Button {
+                            isNight.toggle()
+                        } label: {
+                            WeatherButton(title: "Change Day Time", textColor: .blue, backgroundColor: .white)
                         }
+                        Spacer()
                     }
                 }
-                Spacer()
-                Button {
-                    isNight.toggle()
-                } label: {
-                    WeatherButton(title: "Change Day Time", textColor: .blue, backgroundColor: .white)
-                }
-                Spacer()
             }
         }.onAppear(perform: {
+            isLoading = true
             Api().fetchWeatherData(location: city) { result in
+                isLoading = false
                 switch result {
                 case .success(let weather):
                     var midDayForecasts = weather.getForecast(for: .noon)
                     let eveningForecasts = weather.getForecast(for: .evening)
-                    
+
                     if let todayMidDayWeather = weather.getCurrentMidDayWeather(),
                        let todayMidDayWeatherIcon = todayMidDayWeather.weather.first?.icon {
                         self.currentMidDayWeather = StaticWeather(dayOfWeek: todayMidDayWeather.stringWeekDay,
@@ -85,20 +97,21 @@ struct ContentView: View {
                                                                   temperature: Int(tomorrowMidDayWeather.main.temp))
                         _ = midDayForecasts.removeFirst()
                     }
-                    
+
                     if let todayEveningWeather = weather.getCurrentEveningWeather(),
                        let todayEveningWeatherIcon = todayEveningWeather.weather.first?.icon {
                         self.currentEveningWeather = StaticWeather(dayOfWeek: todayEveningWeather.stringWeekDay,
                                                                    imageName: iconCodes[todayEveningWeatherIcon, default: defaultMidDayIcon],
                                                                    temperature: Int(todayEveningWeather.main.temp))
                     }
-                    
+
                     isNight = 9..<17 ~= weather.latestListHour ? false : true
-                    
+
                     self.midDayForecastWeatherList = getWeatherList(from: midDayForecasts)
                     self.eveningForecastWeatherList = getWeatherList(from: eveningForecasts)
                 case .failure(let error):
                     print(error)
+                    showAlert = true
                 }
             }
         })
@@ -124,6 +137,24 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+    }
+}
+
+struct LoadingView: View {
+    @Binding var isLoading: Bool
+    
+    var body: some View {
+        ZStack {
+            Color.white.opacity(0.8).edgesIgnoringSafeArea(.all)
+            VStack {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)
+                    .rotationEffect(Angle(degrees: isLoading ? 360: 0))
+                    .animation(Animation.linear.repeatForever(autoreverses: false))
+            }
+        }
     }
 }
 
