@@ -13,28 +13,51 @@ struct Weather: Codable {
     let list: [List]
     let city: City
     
-    var forecastMidDayList: [List] {
-        getForecast(in: list, for: "12:00:00")
+    enum Day {
+        case noon
+        case evening
     }
     
-    var forecastEveningList: [List] {
-        getForecast(in: list, for: "18:00:00")
+    var latestListHour: Int {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return Calendar.current.component(.hour, from: dateFormatter.date(from: list.first!.dtTxt)!)
     }
     
-    private func getForecast(in list: [List], for time: String) -> [List] {
-        var previousDate: String = ""
+    func getCurrentMidDayWeather() -> List? {
+        return list.first { list in
+            return 9..<17 ~= latestListHour
+        }
+    }
+    
+    func getCurrentEveningWeather() -> List? {
+        return list.first { list in
+            return 17..<24 ~= latestListHour
+        }
+    }
+    
+    func getForecast(for day: Day) -> [List] {
+        var previousDate = Calendar.current.component(.weekday, from: Date())
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return list.compactMap { list in
-            if previousDate == list.weekDay {
+            if previousDate == list.componentWeekDay {
                 return nil
             } else {
-                if previousDate.isEmpty {
-                    if list.dtTxt.contains(time) {
-                        previousDate = list.weekDay
+                let hour = Calendar.current.component(.hour, from: dateFormatter.date(from: list.dtTxt)!)
+                switch day {
+                case .noon:
+                    if 9..<17 ~= hour {
+                        previousDate = list.componentWeekDay
+                        return list
                     }
-                    return nil
+                case .evening:
+                    if 17..<24 ~= hour {
+                        previousDate = list.componentWeekDay
+                        return list
+                    }
                 }
-                previousDate = list.weekDay
-                return list
+                return nil
             }
         }
     }
@@ -71,14 +94,20 @@ struct Weather: Codable {
             case dtTxt = "dt_txt"
         }
         
-        var weekDay: String {
+        var stringWeekDay: String {
             let time = Date(timeIntervalSince1970: dt)
             var cal = Calendar(identifier: .gregorian)
-            if let tz = TimeZone(identifier: "America/New_York") {
+            if let tz = TimeZone(identifier: "Europe/Berlin") {
                 cal.timeZone = tz
             }
             let weekday = (cal.component(.weekday, from: time) + 0 - 1) % 7
             return Calendar.current.weekdaySymbols[weekday].prefix(3).uppercased()
+        }
+        
+        var componentWeekDay: Int {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            return Calendar.current.component(.weekday, from: dateFormatter.date(from: dtTxt)!)
         }
     }
 

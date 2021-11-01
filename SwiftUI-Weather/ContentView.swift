@@ -70,20 +70,33 @@ struct ContentView: View {
             Api().fetchWeatherData(location: city) { result in
                 switch result {
                 case .success(let weather):
-                    guard let currentMidDayWeather = weather.forecastMidDayList.dropFirst().first,
-                          let currentEveningWeather = weather.forecastEveningList.dropFirst().first,
-                          let currentMidDayIcon = currentMidDayWeather.weather.first?.icon,
-                          let currentEveningIcon = currentEveningWeather.weather.first?.icon else { return }
+                    var midDayForecasts = weather.getForecast(for: .noon)
+                    let eveningForecasts = weather.getForecast(for: .evening)
                     
-                    self.currentMidDayWeather = StaticWeather(dayOfWeek: currentMidDayWeather.weekDay,
-                                                              imageName: iconCodes[currentMidDayIcon, default: defaultMidDayIcon],
-                                                              temperature: Int(currentMidDayWeather.main.temp))
-                    self.currentEveningWeather = StaticWeather(dayOfWeek: currentEveningWeather.weekDay,
-                                                              imageName: iconCodes[currentEveningIcon, default: defaultEveningIcon],
-                                                              temperature: Int(currentEveningWeather.main.temp))
+                    if let todayMidDayWeather = weather.getCurrentMidDayWeather(),
+                       let todayMidDayWeatherIcon = todayMidDayWeather.weather.first?.icon {
+                        self.currentMidDayWeather = StaticWeather(dayOfWeek: todayMidDayWeather.stringWeekDay,
+                                                                  imageName: iconCodes[todayMidDayWeatherIcon, default: defaultMidDayIcon],
+                                                                  temperature: Int(todayMidDayWeather.main.temp))
+                    } else if let tomorrowMidDayWeather = midDayForecasts.first,
+                              let tomorrowMidDayWeatherIcon = tomorrowMidDayWeather.weather.first?.icon {
+                        self.currentMidDayWeather = StaticWeather(dayOfWeek: tomorrowMidDayWeather.stringWeekDay,
+                                                                  imageName: iconCodes[tomorrowMidDayWeatherIcon, default: defaultMidDayIcon],
+                                                                  temperature: Int(tomorrowMidDayWeather.main.temp))
+                        _ = midDayForecasts.removeFirst()
+                    }
                     
-                    self.midDayForecastWeatherList = getWeatherList(from: weather.forecastMidDayList)
-                    self.eveningForecastWeatherList = getWeatherList(from: weather.forecastEveningList)
+                    if let todayEveningWeather = weather.getCurrentEveningWeather(),
+                       let todayEveningWeatherIcon = todayEveningWeather.weather.first?.icon {
+                        self.currentEveningWeather = StaticWeather(dayOfWeek: todayEveningWeather.stringWeekDay,
+                                                                   imageName: iconCodes[todayEveningWeatherIcon, default: defaultMidDayIcon],
+                                                                   temperature: Int(todayEveningWeather.main.temp))
+                    }
+                    
+                    isNight = 9..<17 ~= weather.latestListHour ? false : true
+                    
+                    self.midDayForecastWeatherList = getWeatherList(from: midDayForecasts)
+                    self.eveningForecastWeatherList = getWeatherList(from: eveningForecasts)
                 case .failure(let error):
                     print(error)
                 }
@@ -101,7 +114,7 @@ struct ContentView: View {
     private func getWeatherList(from list: [Weather.List]) -> [StaticWeather] {
         list.compactMap {
             guard let icon = $0.weather.first?.icon, let imageName = iconCodes[icon] else { return nil }
-            return StaticWeather(dayOfWeek: $0.weekDay,
+            return StaticWeather(dayOfWeek: $0.stringWeekDay,
                                  imageName: imageName,
                                  temperature: Int($0.main.temp))
         }
